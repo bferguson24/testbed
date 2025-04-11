@@ -7,12 +7,6 @@
 #include "taskhandler.h"
 
 // Definitions
-const float scoop::gearLead = 8.0f;
-float scoop::encoder_output_ratio = 534.7 *1.0;
-const float scoop::shaft_lead = 8.0f; // mm
-const float grav = 9.81;
-
-
 scoop* scoop::instance = nullptr;
 
 //Scope resolution contructor
@@ -21,6 +15,7 @@ scoop::scoop(RoboClaw &roboclaw, uint8_t address,
           int xLimPin, int yLimPin, 
           int x_motor_dir, int y_motor_dir, 
           motor *pitchMotor, motor *vibeMotor,
+          loadcell_t *fx_cell, loadcell_t *fy_cell, 
           float xMax, float xMin, 
           float yMax, float yMin, 
           float pitchMax, float pitchMin, 
@@ -29,8 +24,9 @@ scoop::scoop(RoboClaw &roboclaw, uint8_t address,
 : roboclaw(roboclaw), address(address), 
   controller(controller), 
   xLimPin(xLimPin), yLimPin(yLimPin),
-  motor1dir(motor1dir), motor2dir(motor2dir), 
+  motor1dir(x_motor_dir), motor2dir(y_motor_dir), 
   pitchMotor(pitchMotor), vibeMotor(vibeMotor), 
+  fx_cell(fx_cell), fy_cell(fy_cell), 
   xMax(xMax), xMin(xMin), 
   yMax(yMax), yMin(yMin), 
   pitchMax(pitchMax), pitchMin(pitchMin), 
@@ -73,7 +69,7 @@ void scoop::set_command(command_t *command){
 
 void scoop::process_command(uint8_t buffer[]){
   command_t *cmd =  (command_t*) buffer; 
-  Serial.println(*cmd); 
+  // Serial.println(*cmd); 
 
   switch(*cmd){
     case COMMAND_IDLE:
@@ -94,22 +90,24 @@ void scoop::process_command(uint8_t buffer[]){
     case COMMAND_HOME: 
       Serial.print("set cmd home"); 
       instance->set_command(cmd); 
+      instance->home_status = STATE_START_HOME; 
+
       break; 
       
     case COMMAND_MOVE_MANUAL: 
       Serial.print("set cmd move manual"); 
       instance->set_command(cmd); 
-      // Serial.print(instance->activeCommand); 
       break; 
 
     case COMMAND_MOVE_WAYPOINT: 
       Serial.print("set cmd move waypoint"); 
       instance->set_command(cmd); 
+
       
       move_cmd_t *move_cmd = (move_cmd_t*) (buffer);  
-      instance->update_position(&(move_cmd->waypoint)); 
-      break; 
+      instance->current_waypoint = &move_cmd->waypoint; 
 
+      break; 
 
     default:
       Serial.print("Unknown Command: ");
@@ -117,9 +115,13 @@ void scoop::process_command(uint8_t buffer[]){
       break;
 
   }
+  Serial.print("Active Task = "); 
+  Serial.println(instance->activeCommand); 
 }
 
-void scoop::move_waypoint(uint32_t vmax_x, uint32_t a_x, uint32_t vmax_y, uint32_t a_y){
+
+
+void scoop::move_waypoint(waypoint_t *waypoint, uint32_t vmax_x, uint32_t a_x, uint32_t vmax_y, uint32_t a_y){
 
   float x = current_waypoint->x;
   float y = current_waypoint->y;
@@ -138,7 +140,7 @@ void scoop::move_waypoint(uint32_t vmax_x, uint32_t a_x, uint32_t vmax_y, uint32
   uint32_t M2_speed = trans2rot(vmax_y) * M2_dir;
   uint32_t M2_accel = trans2rot(a_y);
 
-  Serial.print("WAYPOINT CALCULATION COMPLETE"); 
+  // Serial.println("WAYPOINT CALCULATION COMPLETE"); 
 
   // Serial.print("X = ");
   // Serial.print(x); 
@@ -156,94 +158,184 @@ void scoop::move_waypoint(uint32_t vmax_x, uint32_t a_x, uint32_t vmax_y, uint32
 }
 
 void scoop::move_task(){
+
+
+
+// if (activeCommand == COMMAND_IDLE) {
+//   Serial.println("IDLE confirmed in move_task()");
+// } else {
+//   Serial.print("Unexpected activeCommand = ");
+//   Serial.println(activeCommand);
+// }
+
+// Serial.print("Active Command ");
+// Serial.print(scoop::instance->activeCommand, DEC); 
   
-  Serial.print("Active Command ");
-  Serial.print(this->activeCommand); 
-  switch(this->activeCommand){
 
-
-    case COMMAND_IDLE:
-      Serial.println("IDLE"); 
-      this->roboclaw.SpeedM1M2(address, 0,0); 
+switch (this->activeCommand){
+  case COMMAND_IDLE:
+    Serial.println("IDLE"); 
+    break; 
+  case COMMAND_START:
+    Serial.println("START"); 
     break;
 
-    case COMMAND_START:
-      Serial.println("START"); 
-      this->roboclaw.SpeedM1M2(address, 0,0); 
-    break;  
-
-    case COMMAND_STOP: 
-      Serial.println("STOP"); 
-      this->roboclaw.SpeedM1M2(address, 0,0); 
-      this->activeCommand = COMMAND_STOP; 
+  case COMMAND_STOP:
+    Serial.println("STOP"); 
     break; 
 
-    case COMMAND_HOME: 
+  case COMMAND_HOME:
       Serial.println("HOME"); 
-
-      uint32_t speed = trans2rot(20); // [mm/s]
+      uint32_t speed = trans2rot(10); // [mm/s]
       uint32_t accel = trans2rot(1000); // [mm/s^2]
+      this->pitchMotor->set_angle(0); 
+      this->vibeMotor->set_duty_cycle(0);
+
+
+
       switch (home_status){
-        case STATE_SYSTEMS_OFF:
-          //Vibe motor -> 0
-          //Pitch motor ->
-          home_status = STATE_WAITING_ENC1; 
 
-          if (this->motor1dir == 1){
-            this->roboclaw.BackwardM1(address, speed); 
-          }
-          if (this->motor1dir == -1){
-            this->roboclaw.ForwardM1(address, speed);
-          }
-          home_status = STATE_WAITING_ENC1;     
-        break; 
+        case STATE_START_HOME: 
+          Serial.println("STARTING HOME");
+        
+          //Turn off Motors
+          this->vibeMotor->set_duty_cycle(0); 
+          this->pitchMotor->set_angle(0); 
 
+          //Begin Homing Movement; 
+          this->motor1dir == 1 ? this->roboclaw.BackwardM1(address, homing_speed) : this->roboclaw.ForwardM1(address, homing_speed);
+
+          home_status = STATE_WAITING_ENC1;  
+          break;
 
         case STATE_WAITING_ENC1:
-          if (this->motor1dir == 1){
-            this->roboclaw.BackwardM1(address, speed); 
-          }
-          if (this->motor1dir == -1){
-            this->roboclaw.ForwardM1(address, speed);
-          }
 
+          Serial.println("Waiting Enc 1");
           if (digitalRead(this->xLimPin)){
             this->roboclaw.SpeedM1M2(address, 0,0); 
-            this->M1_lim_counts = this->roboclaw.ReadEncM1(address); 
-            STATE_MOVE_X0; 
+            //Trying to just reset encoders at zero instead of tracking an offset;
+            this->roboclaw.SetEncM1(address, 0); 
+            // this->M1_lim_counts = this->roboclaw.ReadEncM1(address); 
+            home_status = STATE_WAITING_ENC2; 
+            this->motor2dir == 1 ? this->roboclaw.BackwardM2(address, homing_speed) : this->roboclaw.ForwardM2(address, homing_speed);
           }
-        break; 
+          break; 
 
-        case STATE_MOVE_X0:
-          float position = trans2rot(this->x0); 
-          this->roboclaw.SpeedAccelDeccelPositionM1(address, accel, speed, accel, position,0);
-        break;
+        case STATE_WAITING_ENC2:
+          Serial.println("Waiting Enc 2"); 
+
+          if (digitalRead(this->yLimPin)){
+            this->roboclaw.SpeedM1M2(address, 0,0); 
+            //Trying to just reset encoders at zero instead of tracking an offset;
+            this->roboclaw.SetEncM2(address, 0); 
+          // this->M1_lim_counts = this->roboclaw.ReadEncM1(address); 
+            home_status = STATE_HOME_COMPLETE; 
+            this->activeCommand = COMMAND_IDLE; 
+          }
+          break; 
+
+        case STATE_MEASURE_YGND:
+          Serial.println("Waiting for ground level"); 
+          break;
       }
-    break; 
-        
-    case 4:
-      Serial.println("MOVE WAYPOINT"); 
-      // this->move_waypoint(); 
-    break; 
-        
-    case 5:
-      Serial.println("MOVE MANUAL"); 
+      break;
 
-      // this->controller->multichannel_read();
-
-      // waypoint_t waypoint_manual[] = {
-      //   controller->a0.output,
-      //   controller->a1.output,
-      //   controller->a2.output,
-      //   controller->a3.output
-      // };
+  case COMMAND_MOVE_WAYPOINT:
+    Serial.println("MOVE WAYPOINT"); 
+    break; 
     
-      // this->update_position(waypoint_manual);
-      // this->move_waypoint(); 
+  case COMMAND_MOVE_MANUAL:
+    Serial.println("MOVE MANUAL"); 
     break; 
-
-  }
 }
+
+
+  // switch(this->activeCommand){
+  //   case COMMAND_IDLE:
+  //     Serial.println("IDLE"); 
+  //     this->roboclaw.SpeedM1M2(address, 0,0); 
+  //     break; 
+      
+  //   case COMMAND_START:
+  //     Serial.println("START"); 
+  //     this->roboclaw.SpeedM1M2(address, 0,0); 
+  //     break; 
+
+  //   case COMMAND_STOP:
+  //     Serial.println("STOP"); 
+  //     this->roboclaw.SpeedM1M2(address, 0,0); 
+  //     break; 
+
+  //   case COMMAND_HOME:
+  //     Serial.println("HOME"); 
+  //     uint32_t speed = trans2rot(20); // [mm/s]
+  //     uint32_t accel = trans2rot(1000); // [mm/s^2]
+
+  //     switch (home_status){
+
+  //       case STATE_START_HOME: 
+  //         Serial.println("STARTING HOME");
+        
+  //         //Turn off Motors
+  //         this->vibeMotor->set_duty_cycle(0); 
+  //         this->pitchMotor->set_angle(0); 
+
+  //         //Begin Homing Movement; 
+  //         this->motor1dir == 1 ? this->roboclaw.BackwardM1(address, homing_speed) : this->roboclaw.ForwardM1(address, homing_speed);
+
+  //         home_status = STATE_WAITING_ENC1;  
+  //         break;
+
+  //       case STATE_WAITING_ENC1:
+  //         if (digitalRead(this->xLimPin)){
+  //           this->roboclaw.SpeedM1M2(address, 0,0); 
+  //           //Trying to just reset encoders at zero instead of tracking an offset;
+  //           this->roboclaw.SetEncM1(address, 0); 
+  //           // this->M1_lim_counts = this->roboclaw.ReadEncM1(address); 
+  //           home_status = STATE_WAITING_ENC2; 
+  //           this->motor1dir == 1 ? this->roboclaw.BackwardM1(address, homing_speed) : this->roboclaw.ForwardM1(address, homing_speed);
+  //         }
+  //         break; 
+
+  //       case STATE_WAITING_ENC2:
+  //         if (digitalRead(this->yLimPin)){
+  //           this->roboclaw.SpeedM1M2(address, 0,0); 
+  //           //Trying to just reset encoders at zero instead of tracking an offset;
+  //           this->roboclaw.SetEncM2(address, 0); 
+  //           // this->M1_lim_counts = this->roboclaw.ReadEncM1(address); 
+  //         }
+  //         home_status = STATE_MEASURE_YGND; 
+  //         break; 
+      
+  //     }
+  //     break;   
+
+  //   case 4:
+  //     Serial.println("MOVE WAYPOINT"); 
+  //     // this->move_waypoint(this->current_waypoint); 
+  //     break;
+
+  //   case 5:
+  //   Serial.println("MOVE MANUAL"); 
+  //   this->controller->multichannel_read();
+
+  //   waypoint_t waypoint_manual[] = {
+  //     controller->a0.output,
+  //     controller->a1.output,
+  //     controller->a2.output,
+  //     controller->a3.output
+  //   };
+  
+  //   // this->update_position(waypoint_manual);
+  //   // this->move_waypoint(waypoint_manual); 
+  //   break;
+
+
+  // }
+  // Serial.println(); 
+}
+
+
 
 
 
@@ -296,6 +388,10 @@ void scoop::displayspeed(void){
   }
   
   Serial.println();
+}
+
+void scoop::read_force(){
+  
 }
 
 

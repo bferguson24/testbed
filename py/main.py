@@ -1,10 +1,14 @@
 import serial
 import time
 from SerialPacket import *
-import main_gui
+from main_gui import ScoopGUI
 from scoop_control import Scoop
+from saleae import Saleae
+import tkinter as tk
 
 
+root = tk.Tk()
+scoop = Scoop()
+gui = ScoopGUI(root, scoop)
 
-
-main_gui.run_gui()
+root.mainloop()

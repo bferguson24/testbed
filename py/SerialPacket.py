@@ -22,8 +22,8 @@ def send_packet(serial_port, command, x, y, pitch, vibe):
     packet = struct.pack('<4sBBffff', sync_word, message_length, command.value, x, y, pitch, vibe)
 
     hex_packet = ' '.join(f'{byte:02X}' for byte in packet)
-    # print(f'Raw packet in hex: {hex_packet}')
+    print(f'Raw packet in hex: {hex_packet}')
     
     # Send the packet and print confirmation
     serial_port.write(packet)
-    print(f"Sent packet: Command={command}, X={x}, Y={y}, Pitch={pitch}, Vibe = {vibe}")
+    # print(f"Sent packet: Command={command}, X={x}, Y={y}, Pitch={pitch}, Vibe = {vibe}")

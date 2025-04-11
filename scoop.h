@@ -9,15 +9,16 @@
 //Peyton 
 //include any accel libraries here: 
 
-
+typedef struct{
+  int read_pin;  
+  float offset; 
+  float scale; 
+} loadcell_t; 
 
 typedef enum{
-  STATE_SYSTEMS_OFF,
+  STATE_START_HOME,
   STATE_WAITING_ENC1,
-  STATE_MOVE_X0,
   STATE_WAITING_ENC2,
-  STATE_MOVE_Y0,
-  STATE_MOVE_YPRE, 
   STATE_MEASURE_YGND,
   STATE_WAITING_PAUSE1,
   STATE_RETURN_Y0,
@@ -53,12 +54,15 @@ private:
   float y_gnd;  
 
 //Constants
-  float x0;
-  float y0; 
-  float y_gnd_pre; 
-  static const float gearLead; // NA
-  static float encoder_output_ratio; // NA
-  static const float shaft_lead; // mm 
+  static constexpr float gearLead = 8.0f;
+  static constexpr float encoder_output_ratio = 534.7 *1.0;
+  static constexpr float x0 = 10.0f;
+  static constexpr float y0 = 10.0f;
+  static constexpr float y_gnd_pre = 50.0f;
+  static constexpr float grav = 9.81f;
+  static constexpr uint32_t homing_speed = 1000;
+
+
 
 //Control
   command_t activeCommand; 
@@ -70,6 +74,10 @@ public:
   waypoint_t *current_waypoint; 
   motor *pitchMotor; 
   motor *vibeMotor; 
+  
+//Load Cells
+  loadcell_t *fx_cell; 
+  loadcell_t *fy_cell; 
 
   //Contructor
   scoop(RoboClaw &roboclaw, uint8_t address, 
@@ -77,13 +85,14 @@ public:
           int xLimPin, int yLimPin, 
           int x_motor_dir, int y_motor_dir, 
           motor *pitchMotor, motor *vibeMotor,
+          loadcell_t *fx_cell, loadcell_t *fy_cell, 
           float xMax, float xMin, 
           float yMax, float yMin, 
           float pitchMax, float pitchMin, 
           float vibeMin, float vibeMax);
 
     void move_task(); 
-    void move_waypoint(uint32_t vmax_x = 10000, uint32_t a_x = 10000 , uint32_t vmax_y = 10000, uint32_t a_y = 10000); 
+    void move_waypoint(waypoint_t *waypoint, uint32_t vmax_x = 10000, uint32_t a_x = 10000 , uint32_t vmax_y = 10000, uint32_t a_y = 10000); 
     void PID_task();
     void commandHandlerTask(); 
     static void process_command(uint8_t *buffer); 
@@ -91,10 +100,8 @@ public:
     void set_command(command_t *command); 
     void home();
     void excavateSequence(); 
-    // void moveAbsolute(float x, float y, float pitch, float vibe = 0, uint32_t vmax_x = 10000, uint32_t a_x = 10000 , uint32_t vmax_y = 10000, uint32_t a_y = 10000); //Move to absolute position using Home Values
-    // bool moveRelative(double x, double y, double pitch, uint32_t vmax_x = 10000, uint32_t a_x = 10000 , uint32_t vmax_y = 10000, uint32_t a_y = 10000); // Move from current position by distance x y pitch 
-    void groundLevel();
     void readAccel();
+    void read_force(); 
     void readAllSensors();
     void displayspeed();
     void inputControl(int analogX, int analogY, int analogPitch, int analogVibe, float deadBand = 30, float stepSize = 0.5);

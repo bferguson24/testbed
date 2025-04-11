@@ -6,9 +6,9 @@
 Controller::Controller(float deadband, float stepsize)
   : deadzone(deadzone), stepsize(stepsize)
 {
-  a0 = {0, A0, (int)deadband, 20, 0, 50, 1};
-  a1 = {0, A1, (int)deadband, 20, 0, 50, 1};
-  a2 = {0, A2, (int)deadband, 0.5, 0, 100, -1};
+  a0 = {0, A0, (int)deadband, 20, 0, 10000, 1};
+  a1 = {0, A1, (int)deadband, 20, 0, 10000, 1};
+  a2 = {0, A2, (int)deadband, 0.2, 0, 100, -1};
   a3 = {0, A3, (int)deadband, 0.3, -40, 40, 1};
 };
 

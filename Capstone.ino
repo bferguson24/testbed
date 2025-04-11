@@ -49,20 +49,29 @@ Controller controller(30, 0.5);
   float vibeMin = 0;
   float vibeMax = 100; 
 
+//Load Cells
+  int fx_pin = A5;
+  float fx_offset = 0.0f;
+  float fx_scale = 0.0f; 
+  loadcell_t fx_cell = {fx_pin, fx_offset, fx_scale};
+
+  int fy_pin = A6;
+  float fy_offset = 0.0f;
+  float fy_scale = 0.0f; 
+  loadcell_t fy_cell = {fy_pin, fy_offset, fy_scale}; 
+
 RoboClaw roboclaw(&Serial1, 1000);
 
 scoop scoop(roboclaw, address, 
             &controller, 
             xLimPin, yLimPin, 
             x_motor_dir, y_motor_dir, 
-            &pitch_motor, &vibe_motor,             
+            &pitch_motor, &vibe_motor,    
+            &fx_cell, &fy_cell,          
             xMax, xMin, 
             yMax, yMin, 
             pitchMax, pitchMin, 
             vibeMin, vibeMax);
-
-
-waypoint_t start_waypoint = {1,2,3,4};
 
 void setup() {
   Serial.begin(115200); // Print Statements
@@ -77,21 +86,34 @@ void setup() {
   }
   scoop.init();
   vibe_motor.init(); 
-
-
-
 }
 
-
-// uint32_t accel = 10000;
-// uint32_t speed = 0; 
+float accel = 10000; 
+float speed = 0;
+bool status = false; 
 
 
 void loop() {
 
-packet.read_state_task(); 
-// scoop.PID_task(); 
 // scoop.move_task(); 
+
+
+packet.read_state_task(); 
+scoop.PID_task(); 
+
+// controller.multichannel_read();
+//  uint32_t y = controller.a0.output; 
+//  uint32_t x = controller.a1.output; 
+//  float vibe = controller.a2.output; 
+//  float pitch = controller.a3.output; 
+ 
+//  // roboclaw.SpeedAccelDeccelPositionM1M2(address, accel, speed, accel, x, accel, speed, accel, y, 0);
+//  scoop.vibeMotor->set_duty_cycle(vibe); 
+//  //Set POSITIONS
+//  roboclaw.SpeedAccelDeccelPositionM1M2(address, accel, speed, accel, x, accel, speed, accel, y, 0);
+//  scoop.pitchMotor->set_angle(pitch);
+ }
+
 
 
 
@@ -119,7 +141,7 @@ packet.read_state_task();
 // scoop.update_position(waypoint_t *waypoint)
 // roboclaw.SpeedAccelDeccelPositionM1M2(address, accel, speed, accel, x, accel, speed, accel, y, 0);
 // scoop.pitchMotor->set_angle(pitch);
-}
+
 
 
 

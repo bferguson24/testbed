@@ -28,7 +28,7 @@ void SerialPacket::read_state_task(){
     return;
   }
   uint8_t byte = Serial2.read(); 
-  Serial.println(byte); 
+  // Serial.println(byte, HEX); 
   switch(state){
 
     case STATE_WAITING_SYNC_0:
@@ -82,7 +82,6 @@ void SerialPacket::read_state_task(){
         current_idx++;
         
       } else {
-        Serial.println("data read complete");
         callback(this->buffer);
 
         this->current_idx = 0; 
