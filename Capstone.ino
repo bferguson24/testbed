@@ -31,7 +31,16 @@ Controller controller(30, 0.5);
   int pitch_angle_offset = 624;
   sample pitch_avg(0.05, 0.0); 
   PID_controller pitch_PID (3.0,0.0,1.0, -100, 100, 0.0, 3.0); 
-  motor pitch_motor(pitch_pwm, pitch_dir1, pitch_dir2, pitch_angle_pin, pitch_angle_offset, pitch_output_direction_invert, pitch_angle_read_invert, &pitch_PID, &pitch_avg);
+  motor pitch_motor(pitch_pwm, 
+                    pitch_dir1, 
+                    pitch_dir2, 
+                    pitch_angle_pin, 
+                    pitch_angle_offset, 
+                    pitch_output_direction_invert, 
+                    pitch_angle_read_invert, 
+                    &pitch_PID, 
+                    &pitch_avg
+                  );
 
 //Vibe Motor
   int vibe_dir1 = 10;
@@ -99,19 +108,29 @@ void loop() {
 
 
 packet.read_state_task(); 
-scoop.PID_task(); 
+// scoop.PID_task(); 
 
-// controller.multichannel_read();
-//  uint32_t y = controller.a0.output; 
-//  uint32_t x = controller.a1.output; 
-//  float vibe = controller.a2.output; 
-//  float pitch = controller.a3.output; 
+
+
+
+controller.multichannel_read();
+ uint32_t y = controller.a0.output; 
+ uint32_t x = controller.a1.output; 
+ float vibe = controller.a2.output; 
+ float pitch = controller.a3.output; 
+
+// Serial.println(scoop.pitchMotor->read_angle()); 
+// scoop.pitchMotor->set_duty_cycle(pitch);
+
+scoop.pitchMotor->set_duty_cycle(vibe); 
+
  
 //  // roboclaw.SpeedAccelDeccelPositionM1M2(address, accel, speed, accel, x, accel, speed, accel, y, 0);
 //  scoop.vibeMotor->set_duty_cycle(vibe); 
 //  //Set POSITIONS
 //  roboclaw.SpeedAccelDeccelPositionM1M2(address, accel, speed, accel, x, accel, speed, accel, y, 0);
 //  scoop.pitchMotor->set_angle(pitch);
+
  }
 
 

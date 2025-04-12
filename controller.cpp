@@ -38,13 +38,13 @@ void Controller::multichannel_read(){
   analog_step(&this->a2); 
   analog_step(&this->a3); 
 
-  // Serial.print(this->a0.output);
-  // Serial.print(","); 
-  // Serial.print(this->a1.output);
-  // Serial.print(","); 
-  // Serial.print(this->a2.output);
-  // Serial.print(","); 
-  // Serial.println(this->a3.output);
+  Serial.print(this->a0.output);
+  Serial.print(","); 
+  Serial.print(this->a1.output);
+  Serial.print(","); 
+  Serial.print(this->a2.output);
+  Serial.print(","); 
+  Serial.println(this->a3.output);
   
 
 
