@@ -1,0 +1,12 @@
+# Ignore everything in TrajectoryGeneration folder
+# TrajectoryGeneration/
+
+# Ignore everything in py/data_output folder
+py/data_output/
+
+py/data_processing/screenshots
+
+# Ignore all .blend and .blend1 files in the entire repo
+# *.blend
+# *.blend1
+__pycache__/
